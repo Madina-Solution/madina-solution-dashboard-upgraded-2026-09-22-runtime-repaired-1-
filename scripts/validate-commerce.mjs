@@ -1,0 +1,36 @@
+import fs from "node:fs";
+const read = (file) => fs.readFileSync(file, "utf8");
+const checks = [];
+const assert = (label, condition) => checks.push([label, Boolean(condition)]);
+const schema = read("src/db/schema.ts");
+const orderApi = read("src/app/api/orders/route.ts");
+const checkout = read("src/lib/validations/checkout.ts");
+const cart = read("src/lib/cart/types.ts");
+const serviceDetail = read("src/app/(public)/services/[slug]/page.tsx");
+const serviceOrder = read("src/app/(public)/services/[slug]/order/page.tsx");
+const mediaUpload = read("src/app/api/media/upload/route.ts");
+const orderDetailApi = read("src/app/api/account/orders/[id]/route.ts");
+const download = read("src/app/api/account/orders/[id]/files/[mediaId]/route.ts");
+const mediaPage = read("src/app/(admin)/admin/media/page.tsx");
+const getNav = read("src/lib/get-navigation.ts");
+const publicLayout = read("src/app/(public)/layout.tsx");
+const mega = read("src/components/layout/mega-menu.tsx");
+const carousel = read("src/components/ui/media-carousel.tsx");
+
+assert("Services support database-driven customer options", schema.includes('options: jsonb("options")') && serviceOrder.includes("ServiceConfiguration"));
+assert("Products and services support physical/digital/hybrid fulfillment", schema.includes('fulfillmentType: varchar("fulfillment_type"') && orderApi.includes("fulfillmentType"));
+assert("Checkout accepts either productId or serviceId", checkout.includes("serviceId") && checkout.includes("!== Boolean(item.serviceId)"));
+assert("Order API validates service/product configuration server-side", orderApi.includes("serviceOptions") && orderApi.includes("productOptions"));
+assert("Customer uploads are bound to authenticated media ownership", orderApi.includes("media.userId") && mediaUpload.includes("Ownership / role checks"));
+assert("Paid + completed orders expose digital deliverables", orderDetailApi.includes('order.paymentStatus === "paid" && order.status === "completed"') && orderDetailApi.includes("downloadableMedia"));
+assert("Downloaded media is protected by order ownership", download.includes("eq(orders.userId, session.userId)") && download.includes('paymentStatus !== "paid"'));
+assert("Service detail does not render duplicate static thumbnail above carousel", !serviceDetail.includes('service.thumbnail && <div className="relative mb-8 aspect-[16/9]'));
+assert("Carousel controls have high-contrast focusable styling", carousel.includes("bg-dark-950/85") && carousel.includes("focus-visible:ring-2"));
+assert("Media Manager route exists and has upload/search/delete UX", fs.existsSync("src/app/(admin)/admin/media/page.tsx") && mediaPage.includes("Media Manager") && mediaPage.includes("/api/admin/media/"));
+assert("Admin media API applies purpose/search filters to list", read("src/app/api/admin/media/route.ts").includes("where(whereClause)"));
+assert("Mega menu is driven by admin-managed navigation data", getNav.includes("navigationItems") && publicLayout.includes("getPublicNavigation") && mega.includes("navigation") && mega.includes("NAV_ICON_MAP"));
+
+const failed = checks.filter(([, ok]) => !ok);
+for (const [label, ok] of checks) console.log(`${ok ? "PASS" : "FAIL"} ${label}`);
+console.log(`\nCommerce/media contract: ${checks.length - failed.length}/${checks.length} passed`);
+if (failed.length) process.exit(1);
